@@ -1,82 +1,79 @@
 import React, { useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeScanner } from "dynamsoft-javascript-barcode";
 
-const boxData = {
-  "4248424835": {
-    weightKg: 14.23,
-    description: "Boneless Pork Shoulder Butts",
-    packedDate: "2024-09-04"
-  }
-};
+// 라이선스 및 리소스 경로 설정
+BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzODcxODkyLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzODcxODkyIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjozMDM1NzAwMjh9";
+BarcodeScanner.engineResourcePath = "/dynamsoft/";
 
 function App() {
   const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const scannedSetRef = useRef(new Set());
-  const [scannedBarcodes, setScannedBarcodes] = useState([]);
+  const [barcodeData, setBarcodeData] = useState(null);
+  const [weightKg, setWeightKg] = useState(null);
 
   useEffect(() => {
-    const codeReader = new BrowserMultiFormatReader();
+    let scanner;
 
-    const startScanner = async () => {
+    const initScanner = async () => {
       try {
-        const controls = await codeReader.decodeFromVideoDevice(
-          undefined,
-          videoRef.current,
-          (result, err) => {
-            if (result && !scannedSetRef.current.has(result.text)) {
-              scannedSetRef.current.add(result.text);
+        scanner = await BarcodeScanner.createInstance();
+        await scanner.setUIElement(videoRef.current);
 
-              const data = boxData[result.text];
-              const entry = {
-                barcode: result.text,
-                ...data
-              };
-              setScannedBarcodes(prev => [...prev, entry]);
+        scanner.onFrameRead = results => {
+          if (results.length > 0) {
+            const raw = results[0].barcodeText;
+            console.log("🎯 인식된 바코드:", raw);
+            setBarcodeData(raw);
+
+            // GS1의 3202 중량 인식
+            const match = raw.match(/3202(\d{5})/);
+            if (match) {
+              const kg = parseInt(match[1], 10) / 100;
+              setWeightKg(kg.toFixed(2));
+            } else {
+              setWeightKg(null);
             }
           }
-        );
+        };
 
-        // 비디오 스트림을 나중에 종료할 수 있도록 참조 저장
-        streamRef.current = controls;
+        await scanner.open();
       } catch (error) {
-        console.error("카메라 접근 오류:", error);
+        console.error("스캐너 초기화 실패:", error);
       }
     };
 
-    startScanner();
+    initScanner();
 
     return () => {
-      // 스트림 정지
-      if (streamRef.current && typeof streamRef.current.stop === "function") {
-        streamRef.current.stop();
-      }
+      if (scanner) scanner.destroyContext();
     };
   }, []);
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "auto" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "20px" }}>
-        📦 박스 중량 스캐너
-      </h1>
-      <video ref={videoRef} style={{ width: "100%", borderRadius: "10px", border: "1px solid #ccc" }} />
+    <div className="p-4 max-w-xl mx-auto text-center">
+      <h1 className="text-2xl font-bold mb-4">📦 GS1 바코드 중량 스캐너</h1>
+      <div
+        ref={videoRef}
+        className="dce-video-container"
+        style={{
+          width: "320px",
+          height: "240px",
+          margin: "0 auto",
+          border: "1px solid #ccc",
+          borderRadius: "8px",
+          overflow: "hidden"
+        }}
+      ></div>
 
-      <ul style={{ marginTop: "20px", listStyle: "none", padding: 0 }}>
-        {scannedBarcodes.map((item, index) => (
-          <li key={index} style={{ marginBottom: "15px", padding: "15px", backgroundColor: "#f9f9f9", borderRadius: "8px", border: "1px solid #ddd" }}>
-            <div><strong>바코드:</strong> {item.barcode}</div>
-            {item.weightKg ? (
-              <>
-                <div><strong>중량:</strong> {item.weightKg} kg</div>
-                <div><strong>품목:</strong> {item.description}</div>
-                <div><strong>포장일:</strong> {item.packedDate}</div>
-              </>
-            ) : (
-              <div style={{ color: "red" }}>데이터 없음</div>
-            )}
-          </li>
-        ))}
-      </ul>
+      {barcodeData && (
+        <div className="mt-6 p-4 border rounded shadow bg-white text-left">
+          <p><strong>📄 바코드 전체:</strong> {barcodeData}</p>
+          {weightKg ? (
+            <p className="text-green-600 text-xl mt-2">⚖️ 중량: {weightKg} kg</p>
+          ) : (
+            <p className="text-red-500 mt-2">❗ 중량 정보 없음 (3202 AI 없음)</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
