@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BarcodeScanner } from "dynamsoft-javascript-barcode";
 
-const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfD8w4MAL0b2FNEy0aTAnBOfIZsrEBJoh2CeGY0MK3IrdNFuNeOCLWnkWKzi6ZA1uE/exec";
-
 BarcodeScanner.license =
   "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzODcxODkyLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzODcxODkyIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjozMDM1NzAwMjh9";
 BarcodeScanner.engineResourcePath =
@@ -55,35 +53,40 @@ function App() {
           scanner.onFrameRead = (results) => {
             if (results.length > 0) {
               const raw = results[0].barcodeText;
-
+          
               if (scannedSet.current.has(raw)) {
                 setDuplicateNotice(true);
                 setTimeout(() => setDuplicateNotice(false), 2000);
                 return;
               }
-
+          
               scannedSet.current.add(raw);
               navigator.vibrate && navigator.vibrate(200);
               console.log("🎯 인식된 바코드:", raw);
-
-              const match = raw.match(/3202(\d{6})/);
+          
               let kg = null;
-
-              if (match) {
-                const lb = parseInt(match[1], 10) / 100;
+              const matchLb = raw.match(/3202(\d{6})/); // lb 단위
+              const matchKg = raw.match(/3102(\d{6})/); // kg 단위
+          
+              if (matchLb) {
+                const lb = parseInt(matchLb[1], 10) / 100;
                 kg = lb * 0.45359237;
-                const newItem = {
-                  barcode: raw,
-                  weightKg: kg.toFixed(2),
-                  timestamp: new Date().toLocaleTimeString(),
-                };
-                setScannedList((prev) => [...prev, newItem]);
+              } else if (matchKg) {
+                kg = parseInt(matchKg[1], 10) / 100;
               } else {
                 setManualBarcode(raw);
                 setShowModal(true);
+                return;
               }
+          
+              const newItem = {
+                barcode: raw,
+                weightKg: kg.toFixed(2),
+                timestamp: new Date().toLocaleTimeString(),
+              };
+              setScannedList((prev) => [...prev, newItem]);
             }
-          };
+          };          
 
           await scanner.open();
         } catch (error) {
@@ -117,28 +120,37 @@ function App() {
     setShowModal(true);
   };
 
-  const submitToGoogleSheet = async () => {
+  const downloadCSV = () => {
     const totalWeight = scannedList.reduce(
       (sum, item) => sum + (parseFloat(item.weightKg) || 0),
       0
     );
 
-    try {
-      await fetch(WEBHOOK_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          itemName,
-          totalWeight: totalWeight.toFixed(2),
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+    const now = new Date();
+    const filename = `${itemName}_${totalWeight.toFixed(2)}kg_${now.toISOString().slice(0, 10)}.csv`;
 
-      alert("✅ 구글 시트에 전송되었습니다!");
-    } catch (error) {
-      alert("❌ 전송 실패: " + error.message);
-    }
+    const headers = ["Timestamp", "Barcode", "Weight (kg)"];
+    const rows = scannedList.map((item) => [
+      item.timestamp,
+      item.barcode,
+      item.weightKg,
+    ]);
+
+    rows.unshift(["Total", "", totalWeight.toFixed(2)]);
+    rows.unshift(headers);
+
+    const csvContent =
+      "\uFEFF" + rows.map((r) => r.join(",")).join("\n"); // \uFEFF for Excel UTF-8
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -230,10 +242,6 @@ function App() {
         </div>
       )}
 
-      <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "1.5rem" }}>
-        📦 GS1 바코드 중량 스캐너
-      </h1>
-
       {!scannerStarted ? (
         <button
           onClick={startScanner}
@@ -249,7 +257,7 @@ function App() {
             maxWidth: "320px",
           }}
         >
-          📷 카메라 시작
+          📷 시작
         </button>
       ) : (
         <>
@@ -282,10 +290,10 @@ function App() {
               ➕ 수동 입력
             </button>
             <button
-              onClick={submitToGoogleSheet}
+              onClick={downloadCSV}
               style={{
                 flex: 1,
-                backgroundColor: "#f59e0b",
+                backgroundColor: "#6366f1",
                 color: "white",
                 padding: "10px",
                 fontSize: "1rem",
@@ -294,7 +302,7 @@ function App() {
                 cursor: "pointer",
               }}
             >
-              📤 제출
+              ✅ 완료
             </button>
           </div>
         </>
