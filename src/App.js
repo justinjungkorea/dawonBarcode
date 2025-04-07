@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BarcodeScanner } from "dynamsoft-javascript-barcode";
 
-// Dynamsoft 설정
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfD8w4MAL0b2FNEy0aTAnBOfIZsrEBJoh2CeGY0MK3IrdNFuNeOCLWnkWKzi6ZA1uE/exec";
+
 BarcodeScanner.license =
   "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzODcxODkyLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzODcxODkyIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjozMDM1NzAwMjh9";
 BarcodeScanner.engineResourcePath =
@@ -16,10 +17,15 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [manualWeight, setManualWeight] = useState("");
   const [manualBarcode, setManualBarcode] = useState(null);
+  const [itemName, setItemName] = useState("");
 
   const scannedSet = useRef(new Set());
 
   const startScanner = async () => {
+    const name = window.prompt("품목명을 입력하세요 (예: 목전지)");
+    if (!name) return;
+    setItemName(name);
+
     try {
       const scannerInstance = await BarcodeScanner.createInstance();
 
@@ -111,6 +117,30 @@ function App() {
     setShowModal(true);
   };
 
+  const submitToGoogleSheet = async () => {
+    const totalWeight = scannedList.reduce(
+      (sum, item) => sum + (parseFloat(item.weightKg) || 0),
+      0
+    );
+
+    try {
+      await fetch(WEBHOOK_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          itemName,
+          totalWeight: totalWeight.toFixed(2),
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      alert("✅ 구글 시트에 전송되었습니다!");
+    } catch (error) {
+      alert("❌ 전송 실패: " + error.message);
+    }
+  };
+
   return (
     <div
       style={{
@@ -121,7 +151,6 @@ function App() {
         textAlign: "center",
       }}
     >
-      {/* 중복 알림 */}
       {duplicateNotice && (
         <div
           style={{
@@ -141,7 +170,6 @@ function App() {
         </div>
       )}
 
-      {/* 모달 */}
       {showModal && (
         <div
           style={{
@@ -237,21 +265,38 @@ function App() {
               overflow: "hidden",
             }}
           />
-          <button
-            onClick={openManualEntry}
-            style={{
-              marginTop: "12px",
-              backgroundColor: "#10b981",
-              color: "white",
-              padding: "10px 20px",
-              fontSize: "1rem",
-              borderRadius: "6px",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            ➕ 수동 입력
-          </button>
+          <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
+            <button
+              onClick={openManualEntry}
+              style={{
+                flex: 1,
+                backgroundColor: "#10b981",
+                color: "white",
+                padding: "10px",
+                fontSize: "1rem",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              ➕ 수동 입력
+            </button>
+            <button
+              onClick={submitToGoogleSheet}
+              style={{
+                flex: 1,
+                backgroundColor: "#f59e0b",
+                color: "white",
+                padding: "10px",
+                fontSize: "1rem",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              📤 제출
+            </button>
+          </div>
         </>
       )}
 
