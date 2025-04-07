@@ -20,7 +20,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "predeploy": "npm run build",
+    "bump": "node bump-version.js",
+    "predeploy": "npm run bump && npm run build",
     "deploy": "gh-pages -d build --cname barcode.dawonmeat.kr"
   },
   "eslintConfig": {

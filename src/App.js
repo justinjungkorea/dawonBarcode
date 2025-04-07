@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BarcodeScanner } from "dynamsoft-javascript-barcode";
+import VersionTag from "./VersionTag";
 
 BarcodeScanner.license =
   "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzODcxODkyLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzODcxODkyIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjozMDM1NzAwMjh9";
@@ -342,6 +343,7 @@ function App() {
           </ul>
         </div>
       )}
+      <VersionTag />
     </div>
   );
 }
